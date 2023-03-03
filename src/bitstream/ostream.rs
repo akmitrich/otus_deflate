@@ -1,4 +1,7 @@
-use std::io;
+use std::{
+    io::{self, Write},
+    mem,
+};
 
 use super::BYTE_SIZE;
 
@@ -14,29 +17,38 @@ impl OutputStream {
         Default::default()
     }
 
-    pub fn write_bit(&mut self, bit: u8) {
-        assert!(self.bit_pos < BYTE_SIZE);
-        let bit = bit & 0b1;
-        let bit_shift = BYTE_SIZE - self.bit_pos - 1;
-        self.advance(1);
-        self.current &= bit << bit_shift;
+    pub fn write_bits(&mut self, n: usize, value: usize) {
+        assert!(n <= mem::size_of::<usize>());
+        for bit_index in (0..n).rev() {
+            let bit = (value & (1 << bit_index)) > 0;
+            self.write_bit(bit as _);
+        }
     }
 
     pub fn finalize(mut self) -> Vec<u8> {
-        self.output.push(self.current);
+        if self.bit_pos % BYTE_SIZE > 0 {
+            self.flush().unwrap();
+        }
         self.output
     }
 }
 
 impl OutputStream {
+    fn write_bit(&mut self, bit: bool) {
+        assert!(self.bit_pos < BYTE_SIZE);
+        if bit {
+            let bit_shift = BYTE_SIZE - self.bit_pos - 1;
+            self.current |= 1 << bit_shift;
+        }
+        self.advance(1);
+    }
+
     fn advance(&mut self, n: usize) {
         assert!(n <= BYTE_SIZE);
         for _ in 0..n {
             self.bit_pos += 1;
             if self.bit_pos % BYTE_SIZE == 0 {
-                self.output.push(self.current);
-                self.bit_pos = 0;
-                self.current = 0;
+                self.flush().unwrap();
             }
         }
     }
@@ -44,41 +56,26 @@ impl OutputStream {
 
 impl io::Write for OutputStream {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        todo!()
+        let mut have_written = 0;
+        for byte in buf {
+            self.write_bits(BYTE_SIZE, *byte as _);
+            have_written += 1;
+        }
+        Ok(have_written)
     }
 
     fn flush(&mut self) -> io::Result<()> {
-        todo!()
-    }
-}
-
-struct BitIter {
-    byte: u8,
-    pos: usize,
-}
-
-impl BitIter {
-    pub fn new(byte: u8) -> Self {
-        Self { byte, pos: 0 }
-    }
-}
-
-impl Iterator for BitIter {
-    type Item = bool;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.pos < BYTE_SIZE {
-            let bit_shift = BYTE_SIZE - self.pos - 1;
-            self.pos += 1;
-            Some(self.byte & (1 << bit_shift) > 0)
-        } else {
-            None
-        }
+        self.output.push(self.current);
+        self.bit_pos = 0;
+        self.current = 0;
+        Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::io::Write;
+
     use super::*;
 
     #[test]
@@ -90,18 +87,21 @@ mod tests {
     #[test]
     fn test_write_bit() {
         let mut os = OutputStream::new();
-        os.write_bit(0);
+        os.write_bit(false);
         assert_eq!(0, os.current);
         assert_eq!(1, os.bit_pos);
-        assert!(!os.finalize().is_empty());
+        os.write_bits(3, 0b101);
+        assert_eq!(0b0101_0000, os.current);
+        assert_eq!(4, os.bit_pos);
+        assert_eq!(&[0b0101_0000], os.finalize().as_slice());
     }
 
     #[test]
-    fn test_bit_iter() {
-        let i = BitIter::new(0b01100011);
-        assert_eq!(
-            vec![false, true, true, false, false, false, true, true],
-            i.collect::<Vec<_>>()
-        );
+    fn test_write_trait() {
+        let mut os = OutputStream::new();
+        let buf = [1, 2, 3];
+        os.write(&buf).unwrap();
+        let output = os.finalize();
+        assert_eq!(buf, output.as_slice());
     }
 }
