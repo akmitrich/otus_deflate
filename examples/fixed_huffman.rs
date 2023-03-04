@@ -15,7 +15,7 @@ fn main() {
 
     let codes = otus_deflate::generate_code(&bit_lengths);
 
-    for (index, code) in codes.iter().filter_map(|node| node.get_code()).enumerate() {
+    for (index, code) in codes.iter().filter_map(|node| node.code).enumerate() {
         println!("{index}. {code:#016b}");
     }
 }

@@ -1,22 +1,8 @@
+use crate::huffman::CodeType;
+
+use super::CodeNode;
+
 pub const MAX_BITS: usize = 15;
-
-pub type CodeType = u16;
-
-pub struct CodeNode {
-    len: u8,
-    code: Option<CodeType>,
-}
-
-impl CodeNode {
-    pub fn new(len: u8, code: CodeType) -> Self {
-        let code = if len > 0 { Some(code) } else { None };
-        Self { len, code }
-    }
-
-    pub fn get_code(&self) -> Option<CodeType> {
-        self.code.clone()
-    }
-}
 
 pub fn generate_code(bit_lengths: &[u8]) -> Vec<CodeNode> {
     let mut bl_count = [0; MAX_BITS];
@@ -32,6 +18,22 @@ pub fn generate_code(bit_lengths: &[u8]) -> Vec<CodeNode> {
         }
     }
     code
+}
+
+pub fn generate_fixed_code() -> Vec<CodeNode> {
+    const BIT_LENGTHS: [u8; 288] = [
+        8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
+        8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
+        8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
+        8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
+        8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 9, 9, 9, 9, 9, 9,
+        9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9,
+        9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9,
+        9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9,
+        9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+        7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 8, 8, 8, 8, 8, 8, 8, 8,
+    ];
+    generate_code(&BIT_LENGTHS)
 }
 
 fn calc_first_codes(bl_count: &[usize; MAX_BITS], next_code: &mut [CodeType]) {
@@ -120,10 +122,7 @@ mod tests {
             7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 8, 8, 8, 8, 8, 8, 8, 8,
         ];
         let code = generate_code(&bit_lengths);
-        let code = code
-            .iter()
-            .filter_map(|node| node.get_code())
-            .collect::<Vec<_>>();
+        let code = code.iter().filter_map(|node| node.code).collect::<Vec<_>>();
         let fixed_huffman_code = vec![
             48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69,
             70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91,
