@@ -4,6 +4,6 @@ fn main() {
     println!(
         "{:?} ---> {:?}",
         msg,
-        otus_deflate::deflate::deflate(msg, code)
+        otus_deflate::deflate::deflate(&msg[..], code)
     );
 }

@@ -1,7 +1,19 @@
+use std::io;
+
 use crate::{bitstream::ostream::OutputStream, CodeNode};
 
-pub fn deflate(input: &[u8], code: Vec<CodeNode>) -> Vec<u8> {
-    let encoder = Deflator::new(input, code);
+const BUF_SIZE: usize = 4096;
+
+pub fn deflate<R: io::Read>(mut data: R, code: Vec<CodeNode>) -> Vec<u8> {
+    let mut buf = [0; BUF_SIZE];
+    let mut input = vec![];
+    while let Ok(size) = data.read(&mut buf) {
+        if size == 0 {
+            break;
+        }
+        input.extend_from_slice(&buf[..size]);
+    }
+    let encoder = Deflator::new(&input, code);
     encoder.deflate()
 }
 

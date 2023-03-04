@@ -97,7 +97,7 @@ fn strip_last_bits(byte: u8, n: usize) -> u8 {
     (byte >> bit_shift) << bit_shift
 }
 
-fn get_first_bits(byte: u8, n: usize) -> u8 {
+fn _get_first_bits(byte: u8, n: usize) -> u8 {
     assert!(n <= 8);
     if n == 0 {
         return 0;
@@ -155,15 +155,15 @@ mod tests {
     #[test]
     fn test_bit_fetch() {
         let x = 0b01100011;
-        assert_eq!(0, get_first_bits(x, 0));
+        assert_eq!(0, _get_first_bits(x, 0));
         assert_eq!(0, get_last_bits(x, 0));
-        assert_eq!(0b01100, get_first_bits(x, 5));
+        assert_eq!(0b01100, _get_first_bits(x, 5));
         assert_eq!(0b00011, get_last_bits(x, 5));
         assert_eq!(0b01100000, strip_last_bits(x, 2));
         assert_eq!(0b01100000, strip_last_bits(x, 3));
         assert_eq!(0b01100000, strip_last_bits(x, 5));
         assert_eq!(0, strip_last_bits(x, 8));
-        assert_eq!(get_first_bits(x, 3), get_last_bits(x, 3));
+        assert_eq!(_get_first_bits(x, 3), get_last_bits(x, 3));
     }
 
     #[test]
