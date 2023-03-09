@@ -1,5 +1,3 @@
-use crate::huffman::CodeType;
-
 use super::CodeNode;
 
 pub const MAX_BITS: usize = 15;
@@ -36,12 +34,12 @@ pub fn generate_fixed_code() -> Vec<CodeNode> {
     generate_code(&BIT_LENGTHS)
 }
 
-fn calc_first_codes(bl_count: &[usize; MAX_BITS], next_code: &mut [CodeType]) {
+fn calc_first_codes(bl_count: &[usize; MAX_BITS], next_code: &mut [u16]) {
     assert!(next_code.len() > bl_count.len());
-    next_code.fill(CodeType::default());
-    let mut code = CodeType::default();
+    next_code.fill(0);
+    let mut code = 0;
     for bits in 0..MAX_BITS {
-        code = CodeType::from(((code as usize + bl_count[bits]) << 1) as u16);
+        code = ((code as usize + bl_count[bits]) << 1) as u16;
         next_code[bits + 1] = code;
     }
 }

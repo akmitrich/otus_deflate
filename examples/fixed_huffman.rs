@@ -18,4 +18,13 @@ fn main() {
     for (index, code) in codes.iter().filter_map(|node| node.code).enumerate() {
         println!("{index}. {code:#016b}");
     }
+    println!(
+        "Length code:\n{}",
+        (0..288)
+            .filter_map(|len| otus_deflate::deflate::CONVERT_LENGTH
+                .get(&len)
+                .and_then(|x| Some(format!("{} => {:?}", len, x))))
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
 }

@@ -1,10 +1,13 @@
-use std::io;
+use std::{collections::HashMap, io};
 
-use crate::{bitstream::ostream::OutputStream, CodeNode};
+use lazy_static::lazy_static;
+
+use crate::CodeNode;
 
 const BUF_SIZE: usize = 4096;
 
-pub fn deflate<R: io::Read>(mut data: R, code: Vec<CodeNode>) -> Vec<u8> {
+pub fn deflate<R: io::Read>(mut data: R, _code: Vec<CodeNode>) -> Vec<CodePoint> {
+    use CodePoint::*;
     let mut buf = [0; BUF_SIZE];
     let mut input = vec![];
     while let Ok(size) = data.read(&mut buf) {
@@ -13,80 +16,97 @@ pub fn deflate<R: io::Read>(mut data: R, code: Vec<CodeNode>) -> Vec<u8> {
         }
         input.extend_from_slice(&buf[..size]);
     }
-    let encoder = Deflator::new(&input, code);
-    encoder.deflate()
+    let encoder = Deflator::new(&input);
+    [Bhead(BFINAL_YES), Btype(BTYPE_FIXED)]
+        .into_iter()
+        .chain(encoder)
+        .chain([EndOfBlock].into_iter())
+        .collect()
 }
 
-const BFINAL_YES: usize = 1;
-const BTYPE_FIXED: usize = 1;
-const END_OF_BLOCK: usize = 256;
+const BFINAL_YES: u16 = 1;
+const BTYPE_FIXED: u16 = 1;
+const MIN_SEQUENCE: usize = 3;
+
+lazy_static! {
+    pub static ref CONVERT_LENGTH: HashMap<usize, (usize, usize, usize)> = {
+        let mut map = HashMap::new();
+        for len in 3..259 {
+            let entry = match len {
+                len if len < 11 => (len + 254, 0, 0),
+                len if len < 19 => ((len - 11) / 2 + 265, 1, (len + 1) % 2),
+                len if len < 35 => ((len - 19) / 4 + 269, 2, (len + 1) % 4),
+                len if len < 67 => ((len - 35) / 8 + 273, 3, (len - 3) % 8),
+                len if len < 131 => ((len - 67) / 16 + 277, 4, (len - 3) % 16),
+                len if len < 258 => ((len - 131) / 32 + 281, 5, (len - 3) % 32),
+                258 => (285, 0, 0),
+                _ => unreachable!(),
+            };
+            map.insert(len, entry);
+        }
+        map
+    };
+}
 
 #[derive(Debug)]
 pub struct Deflator<'a> {
     input: &'a [u8],
     pos: usize,
-    os: OutputStream,
-    code: Vec<CodeNode>,
 }
 
 impl<'a> Deflator<'a> {
-    fn new(input: &'a [u8], code: Vec<CodeNode>) -> Self {
-        Self {
-            input,
-            pos: 0,
-            os: OutputStream::new(),
-            code,
-        }
+    fn new(input: &'a [u8]) -> Self {
+        Self { input, pos: 0 }
     }
 
-    fn deflate(mut self) -> Vec<u8> {
-        self.start();
-        while self.pos < self.input.len() {
-            self.proceed();
+    fn find_sequence(&self) -> Option<(u16, u16)> {
+        if self.pos < MIN_SEQUENCE || self.input.len() - self.pos < MIN_SEQUENCE {
+            return None;
         }
-        self.stop();
-        self.finalize()
+        self.lookup(3).map(|index| (3, (self.pos - index) as u16))
     }
 
-    fn find_sequence(&self) -> Option<(usize, usize)> {
+    fn lookup(&self, length: usize) -> Option<usize> {
+        let mut offset = 0;
+        for index in 0..=(self.pos) {
+            //look in `self.input` at every byte from the begining till last `length` byte before `self.pos`
+            if length <= offset {
+                return Some(index - length);
+            }
+            if self.input[self.pos + offset] == self.input[index] {
+                offset += 1;
+            } else {
+                offset = 0;
+            }
+        }
         None
     }
+}
 
-    fn encode_literal(&mut self, byte: u8) {
-        if let CodeNode {
-            len,
-            code: Some(code),
-        } = &self.code[byte as usize]
-        {
-            self.os.write_bits(*len as _, *code as _);
-        }
-    }
+#[derive(Debug, Clone)]
+pub enum CodePoint {
+    Bhead(u16),
+    Btype(u16),
+    Literal(u16),
+    EndOfBlock,
+    Backref(u16, u16),
+}
 
-    fn proceed(&mut self) {
-        if let Some(_) = self.find_sequence() {
+impl<'a> Iterator for Deflator<'a> {
+    type Item = CodePoint;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.pos < self.input.len() {
+            let current = self.pos;
+            if let Some((length, distance)) = self.find_sequence() {
+                self.pos += length as usize;
+                Some(CodePoint::Backref(length, distance))
+            } else {
+                self.pos += 1;
+                Some(CodePoint::Literal(self.input[current] as _))
+            }
         } else {
-            let byte = self.input[self.pos];
-            self.encode_literal(byte);
-            self.pos += 1;
+            None
         }
-    }
-
-    fn start(&mut self) {
-        self.os.write_bits(1, BFINAL_YES);
-        self.os.write_bits(2, BTYPE_FIXED);
-    }
-
-    fn stop(&mut self) {
-        if let CodeNode {
-            len,
-            code: Some(code),
-        } = &self.code[END_OF_BLOCK]
-        {
-            self.os.write_bits(*len as _, *code as _);
-        }
-    }
-
-    fn finalize(self) -> Vec<u8> {
-        self.os.finalize()
     }
 }
