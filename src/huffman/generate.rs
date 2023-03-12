@@ -1,8 +1,8 @@
-use super::CodeNode;
+use super::HuffmanToken;
 
 pub const MAX_BITS: usize = 15;
 
-pub fn generate_code(bit_lengths: &[u8]) -> Vec<CodeNode> {
+pub fn generate_code(bit_lengths: &[u8]) -> Vec<HuffmanToken> {
     let mut bl_count = [0; MAX_BITS];
     let mut next_code = [0; MAX_BITS + 1];
     calc_bl_count(bit_lengths, &mut bl_count);
@@ -11,15 +11,15 @@ pub fn generate_code(bit_lengths: &[u8]) -> Vec<CodeNode> {
     for len in bit_lengths {
         if *len > 0 {
             let bl_index = (*len - 1) as usize;
-            code.push(CodeNode::new(*len, next_code[bl_index]));
+            code.push(HuffmanToken::new(*len, next_code[bl_index]));
             next_code[bl_index] += 1;
         }
     }
     code
 }
 
-pub fn generate_fixed_code() -> Vec<CodeNode> {
-    const BIT_LENGTHS: [u8; 288] = [
+pub fn generate_fixed_code() -> (Vec<HuffmanToken>, Vec<HuffmanToken>) {
+    const LL_BIT_LENGTHS: [u8; 288] = [
         8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
         8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
         8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8,
@@ -31,7 +31,11 @@ pub fn generate_fixed_code() -> Vec<CodeNode> {
         9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
         7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 8, 8, 8, 8, 8, 8, 8, 8,
     ];
-    generate_code(&BIT_LENGTHS)
+    const CL_BIT_LENGTH: [u8; 32] = [5; 32];
+    (
+        generate_code(&LL_BIT_LENGTHS),
+        generate_code(&CL_BIT_LENGTH),
+    )
 }
 
 fn calc_first_codes(bl_count: &[usize; MAX_BITS], next_code: &mut [u16]) {
@@ -65,14 +69,14 @@ mod tests {
         let bit_lengths = vec![3, 3, 3, 3, 3, 2, 4, 4];
         let code = generate_code(&bit_lengths);
         assert_eq!(8, code.len());
-        assert_eq!(2, code[0].code.unwrap());
-        assert_eq!(3, code[1].code.unwrap());
-        assert_eq!(4, code[2].code.unwrap());
-        assert_eq!(5, code[3].code.unwrap());
-        assert_eq!(6, code[4].code.unwrap());
-        assert_eq!(0, code[5].code.unwrap());
-        assert_eq!(14, code[6].code.unwrap());
-        assert_eq!(15, code[7].code.unwrap());
+        assert_eq!(2, code[0].token.unwrap());
+        assert_eq!(3, code[1].token.unwrap());
+        assert_eq!(4, code[2].token.unwrap());
+        assert_eq!(5, code[3].token.unwrap());
+        assert_eq!(6, code[4].token.unwrap());
+        assert_eq!(0, code[5].token.unwrap());
+        assert_eq!(14, code[6].token.unwrap());
+        assert_eq!(15, code[7].token.unwrap());
     }
 
     #[test]
@@ -120,7 +124,10 @@ mod tests {
             7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 8, 8, 8, 8, 8, 8, 8, 8,
         ];
         let code = generate_code(&bit_lengths);
-        let code = code.iter().filter_map(|node| node.code).collect::<Vec<_>>();
+        let code = code
+            .iter()
+            .filter_map(|node| node.token)
+            .collect::<Vec<_>>();
         let fixed_huffman_code = vec![
             48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69,
             70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91,

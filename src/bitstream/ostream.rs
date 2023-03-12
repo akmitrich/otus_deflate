@@ -17,11 +17,20 @@ impl OutputStream {
         Default::default()
     }
 
-    pub fn write_bits(&mut self, n: usize, value: usize) {
-        assert!(n <= mem::size_of::<usize>());
-        for bit_index in (0..n).rev() {
-            let bit = (value & (1 << bit_index)) > 0;
-            self.write_bit(bit as _);
+    pub fn write_code(&mut self, len: usize, token: usize) {
+        assert!(len <= mem::size_of::<usize>());
+        for bit_index in (0..len).rev() {
+            let bit = (token & (1 << bit_index)) > 0;
+            self.write_bit(bit);
+        }
+    }
+
+    pub fn write_numerical(&mut self, n: usize, value: usize) {
+        let mut x = value;
+        for _ in 0..n {
+            let bit = x & 1 > 0;
+            self.write_bit(bit);
+            x >>= 1;
         }
     }
 
@@ -37,8 +46,7 @@ impl OutputStream {
     fn write_bit(&mut self, bit: bool) {
         assert!(self.bit_pos < BYTE_SIZE);
         if bit {
-            let bit_shift = BYTE_SIZE - self.bit_pos - 1;
-            self.current |= 1 << bit_shift;
+            self.current |= 1 << self.bit_pos;
         }
         self.advance(1);
     }
@@ -58,7 +66,7 @@ impl io::Write for OutputStream {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         let mut have_written = 0;
         for byte in buf {
-            self.write_bits(BYTE_SIZE, *byte as _);
+            self.write_numerical(BYTE_SIZE, *byte as _);
             have_written += 1;
         }
         Ok(have_written)
@@ -87,13 +95,16 @@ mod tests {
     #[test]
     fn test_write_bit() {
         let mut os = OutputStream::new();
-        os.write_bit(false);
-        assert_eq!(0, os.current);
+        os.write_bit(true);
+        assert_eq!(0b0000_0001, os.current);
         assert_eq!(1, os.bit_pos);
-        os.write_bits(3, 0b101);
-        assert_eq!(0b0101_0000, os.current);
+        os.write_code(3, 0b110);
+        assert_eq!(0b0000_0111, os.current);
         assert_eq!(4, os.bit_pos);
-        assert_eq!(&[0b0101_0000], os.finalize().as_slice());
+        os.write_bit(false);
+        assert_eq!(0b0000_0111, os.current);
+        assert_eq!(5, os.bit_pos);
+        assert_eq!(&[0b0000_0111], os.finalize().as_slice());
     }
 
     #[test]

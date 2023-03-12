@@ -1,14 +1,14 @@
 pub mod generate;
 
 #[derive(Debug)]
-pub struct CodeNode {
+pub struct HuffmanToken {
     pub len: u8,
-    pub code: Option<u16>,
+    pub token: Option<u16>,
 }
 
-impl CodeNode {
+impl HuffmanToken {
     pub fn new(len: u8, code: u16) -> Self {
-        let code = if len > 0 { Some(code) } else { None };
-        Self { len, code }
+        let token = if len > 0 { Some(code) } else { None };
+        Self { len, token }
     }
 }
