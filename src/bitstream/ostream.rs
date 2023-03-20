@@ -3,6 +3,11 @@ use std::{
     mem,
 };
 
+use crate::{
+    deflate::{DeflateToken, CONVERT_DISTANCE, CONVERT_LENGTH, END_OF_BLOCK},
+    HuffmanToken,
+};
+
 use super::BYTE_SIZE;
 
 #[derive(Debug, Default)]
@@ -10,11 +15,50 @@ pub struct OutputStream {
     output: Vec<u8>,
     current: u8,
     bit_pos: usize,
+    ll_code: Vec<HuffmanToken>,
+    d_code: Vec<HuffmanToken>,
 }
 
 impl OutputStream {
-    pub fn new() -> Self {
-        Default::default()
+    pub fn new(ll_code: Vec<HuffmanToken>, d_code: Vec<HuffmanToken>) -> Self {
+        Self {
+            output: vec![],
+            current: 0,
+            bit_pos: 0,
+            ll_code,
+            d_code,
+        }
+    }
+
+    pub fn extend(&mut self, tokens: impl Iterator<Item = DeflateToken>) {
+        for ref token in tokens {
+            self.write_token(token);
+        }
+    }
+
+    pub fn write_token(&mut self, token: &DeflateToken) {
+        match token {
+            DeflateToken::Bhead(head) => self.write_numerical(1, *head as _),
+            DeflateToken::Btype(b_type) => self.write_numerical(2, *b_type as _),
+            DeflateToken::Literal(literal) => {
+                let huffman_token = &self.ll_code[*literal as usize];
+                self.write_code(huffman_token.len as _, huffman_token.token.unwrap() as _)
+            }
+            DeflateToken::EndOfBlock => {
+                let huffman_token = &self.ll_code[END_OF_BLOCK];
+                self.write_code(huffman_token.len as _, huffman_token.token.unwrap() as _);
+            }
+            DeflateToken::Backref { length, distance } => {
+                let (token, extra, bits) = CONVERT_LENGTH[&(*length as usize)];
+                let huffman_token = &self.ll_code[token];
+                self.write_code(huffman_token.len as _, huffman_token.token.unwrap() as _);
+                self.write_numerical(extra, bits);
+                let (token, extra, bits) = CONVERT_DISTANCE[&(*distance as usize)];
+                let huffman_token = &self.d_code[token];
+                self.write_code(huffman_token.len as _, huffman_token.token.unwrap() as _);
+                self.write_numerical(extra, bits);
+            }
+        }
     }
 
     pub fn write_code(&mut self, len: usize, token: usize) {
@@ -88,13 +132,13 @@ mod tests {
 
     #[test]
     fn trivial_test() {
-        let os = OutputStream::new();
+        let os = OutputStream::default();
         assert!(os.output.is_empty());
     }
 
     #[test]
     fn test_write_bit() {
-        let mut os = OutputStream::new();
+        let mut os = OutputStream::default();
         os.write_bit(true);
         assert_eq!(0b0000_0001, os.current);
         assert_eq!(1, os.bit_pos);
@@ -109,7 +153,7 @@ mod tests {
 
     #[test]
     fn test_write_trait() {
-        let mut os = OutputStream::new();
+        let mut os = OutputStream::default();
         let buf = [1, 2, 3];
         os.write(&buf).unwrap();
         let output = os.finalize();

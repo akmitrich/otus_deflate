@@ -1,24 +1,19 @@
-use std::{collections::HashMap, io};
-
-use lazy_static::lazy_static;
-
 use crate::{bitstream::ostream::OutputStream, HuffmanToken};
+use lazy_static::lazy_static;
+use std::collections::HashMap;
 
-pub fn deflate<R: io::Read>(mut data: R) -> Vec<DeflateToken> {
+pub fn deflate<'a>(input: &'a [u8]) -> impl Iterator<Item = DeflateToken> + '_ {
     use DeflateToken::*;
-    let mut input = vec![];
-    data.read_to_end(&mut input).unwrap();
-    let encoder = Deflator::new(&input);
+    let encoder = Deflator::new(input);
     [Bhead(BFINAL_YES), Btype(BTYPE_FIXED)]
         .into_iter()
         .chain(encoder)
         .chain([EndOfBlock].into_iter())
-        .collect()
 }
 
 const BFINAL_YES: u16 = 1;
 const BTYPE_FIXED: u16 = 1;
-const END_OF_BLOCK: usize = 256;
+pub const END_OF_BLOCK: usize = 256;
 const MIN_SEQUENCE: usize = 3;
 const MAX_SEQUENCE: usize = 258;
 const MAX_DISTANCE: usize = 32768;
@@ -88,7 +83,7 @@ impl<'a> Deflator<'a> {
             self.pos - MAX_DISTANCE
         };
         for current in (start..self.pos).rev() {
-            let longest = self.lookup(current, self.pos);
+            let longest = self.lookup(current);
             if longest > len {
                 len = longest;
                 index = current;
@@ -101,20 +96,23 @@ impl<'a> Deflator<'a> {
         }
     }
 
-    fn lookup(&self, x: usize, y: usize) -> usize {
-        // y is self.pos
+    fn lookup(&self, x: usize) -> usize {
+        let y = self.pos;
+        assert!(x < y);
         let mut len = 0;
-        let end = if y + MAX_SEQUENCE > self.input.len() {
-            self.input.len() - y
-        } else {
-            MAX_SEQUENCE
-        };
-        for offset in 0..end {
-            if self.input[x + offset] == self.input[y + offset] {
+        let mut offset = 0;
+        loop {
+            let left = x + offset;
+            let right = y + offset;
+            if offset > MAX_SEQUENCE || right >= self.input.len() {
+                break;
+            }
+            if self.input[left] == self.input[right] {
                 len += 1;
             } else {
                 break;
             }
+            offset += 1;
         }
         len
     }

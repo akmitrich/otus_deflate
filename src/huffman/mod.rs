@@ -1,6 +1,6 @@
 pub mod generate;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct HuffmanToken {
     pub len: u8,
     pub token: Option<u16>,
